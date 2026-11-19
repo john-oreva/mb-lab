@@ -36,8 +36,84 @@ jobs:
           python -m py_compile refresh_prices.py download_prices.py market_brief.py replay.py results.py app.py
           python -c 'from market_brief import TICKERS; assert len(TICKERS) == len(set(TICKERS)) == 13; print("13 tickers configured. No API calls made.")'
 
+      - name: Check R2 settings before fetching prices
+        if: ${{ inputs.fetch_prices }}
+        env:
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+
+          import boto3
+
+          required = (
+              "R2_ENDPOINT_URL",
+              "R2_BUCKET",
+              "R2_ACCESS_KEY_ID",
+              "R2_SECRET_ACCESS_KEY",
+          )
+          missing = [name for name in required if not os.environ.get(name)]
+          if missing:
+              raise SystemExit("Missing GitHub Actions secrets: " + ", ".join(missing))
+
+          client = boto3.client(
+              "s3",
+              endpoint_url=os.environ["R2_ENDPOINT_URL"],
+              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+              region_name="auto",
+          )
+          client.list_objects_v2(Bucket=os.environ["R2_BUCKET"], MaxKeys=1)
+          print("R2 bucket is reachable.")
+          PY
+
       - name: Download and validate market data
         if: ${{ inputs.fetch_prices }}
         env:
           ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
         run: python refresh_prices.py
+
+      - name: Publish validated snapshot to R2
+        if: ${{ success() && inputs.fetch_prices }}
+        env:
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          from io import BytesIO
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          import boto3
+
+          from market_brief import TICKERS
+
+          snapshot_dir = Path("data/current").resolve(strict=True)
+          bundle = BytesIO()
+
+          with ZipFile(bundle, "w", compression=ZIP_DEFLATED) as archive:
+              for ticker in TICKERS:
+                  filename = f"{ticker.lower()}.csv"
+                  archive.write(snapshot_dir / filename, arcname=filename)
+
+          client = boto3.client(
+              "s3",
+              endpoint_url=os.environ["R2_ENDPOINT_URL"],
+              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+              region_name="auto",
+          )
+          client.put_object(
+              Bucket=os.environ["R2_BUCKET"],
+              Key="latest.zip",
+              Body=bundle.getvalue(),
+              ContentType="application/zip",
+          )
+          print(f"Published latest.zip with {len(TICKERS)} CSVs")
+          PY

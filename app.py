@@ -1,6 +1,11 @@
 from html import escape
-
+from io import BytesIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from zipfile import BadZipFile, ZipFile
+
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
 import streamlit as st
 from streamlit.components.v1 import html
@@ -59,14 +64,47 @@ data_root = Path(__file__).resolve().parent / "data"
 current = data_root / "current"
 data_dir = current.resolve() if current.is_dir() else data_root
 
-#show a waiting screen until all ticker files are available
-if not all((data_dir / f"{ticker.lower()}.csv").is_file() for ticker in TICKERS):
-    st.title("Market Breadth Lab")
-    st.info("Waiting for the first complete market update.")
-    st.stop()
+csv_names = [f"{ticker.lower()}.csv" for ticker in TICKERS]
 
-brief = build_market_brief(data_dir)
-train, test, comparison = build_comparison(data_dir)
+if all((data_dir / name).is_file() for name in csv_names):
+    brief = build_market_brief(data_dir)
+    train, test, comparison = build_comparison(data_dir)
+else:
+    try:
+        client = boto3.client(
+            "s3",
+            endpoint_url=st.secrets["R2_ENDPOINT_URL"],
+            aws_access_key_id=st.secrets["R2_ACCESS_KEY_ID"],
+            aws_secret_access_key=st.secrets["R2_SECRET_ACCESS_KEY"],
+            region_name="auto",
+        )
+        response = client.get_object(
+            Bucket=st.secrets["R2_BUCKET"],
+            Key="latest.zip",
+        )
+        with response["Body"] as body:
+            snapshot_bytes = body.read()
+
+        with TemporaryDirectory() as folder, ZipFile(BytesIO(snapshot_bytes)) as archive:
+            snapshot_dir = Path(folder)
+            for name in csv_names:
+                (snapshot_dir / name).write_bytes(archive.read(name))
+
+            brief = build_market_brief(snapshot_dir)
+            train, test, comparison = build_comparison(snapshot_dir)
+
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code")
+        if code in {"NoSuchKey", "404"}:
+            st.title("Market Breadth Lab")
+            st.info("Waiting for the first complete market update.")
+        else:
+            st.error("Could not read the market snapshot from R2.")
+        st.stop()
+    except (FileNotFoundError, KeyError, BotoCoreError, BadZipFile):
+        st.error("Could not load the market snapshot. Check the R2 settings and bundle.")
+        st.stop()
+
 model_columns = comparison.columns.drop("Actual")
 actuals = comparison["Actual"]
 errors = comparison[model_columns].sub(actuals, axis=0).abs().mean()
