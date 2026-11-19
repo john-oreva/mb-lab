@@ -1,18 +1,65 @@
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from market_brief import SECTORS
 from replay import build_replay
 
 
-# function to score all forecasts that have a known next-session outcome
+# function to calculate the share of sectors that rose on each complete date
+def build_breadth():
+    sector_returns = {}
+
+    for symbol in SECTORS:
+        path = Path("data") / f"{symbol.lower()}.csv"
+        prices = pd.read_csv(path, parse_dates=["Date"]).set_index("Date")
+        sector_returns[symbol] = prices["Daily return (%)"]
+
+    returns = pd.DataFrame(sector_returns).dropna()
+    return returns.gt(0).mean(axis=1).rename("breadth")
+
+
+# function to fit a regression on earlier dates and predict later dates
+def predict_range(train, test, features):
+    train_inputs = train[features].assign(intercept=1).to_numpy()
+    test_inputs = test[features].assign(intercept=1).to_numpy()
+
+    coefficients, _, _, _ = np.linalg.lstsq(
+        train_inputs, train["actual"].to_numpy(), rcond=None
+    )
+    return np.maximum(test_inputs @ coefficients, 0)
+
+
+# function to score all three forecasts on the same later dates
 def main():
-    scored = build_replay().dropna(subset=["forecast", "actual"])
+    sessions = (
+        build_replay()
+        .join(build_breadth())
+        .dropna(subset=["forecast", "actual", "breadth"])
+        .sort_index()
+    )
 
-    if scored.empty:
-        raise SystemExit("No historical forecasts are ready to score.")
+    if len(sessions) < 10:
+        raise SystemExit("Need at least 10 complete sessions for this first comparison.")
 
-    absolute_errors = (scored["forecast"] - scored["actual"]).abs()
+    split = int(len(sessions) * 0.8)
+    train = sessions.iloc[:split]
+    test = sessions.iloc[split:]
 
-    print("Results | 20-session median baseline")
-    print(f"Forecasts scored: {len(scored)}")
-    print(f"Mean absolute error: {absolute_errors.mean():.2f} percentage points")
+    predictions = {
+        "20-session median": test["forecast"],
+        "Price only": predict_range(train, test, ["forecast"]),
+        "Price + breadth": predict_range(train, test, ["forecast", "breadth"]),
+    }
+
+    print(f"Training sessions: {len(train)}")
+    print(f"Test sessions: {len(test)}")
+    print(f"Test dates: {test.index[0]:%Y-%m-%d} to {test.index[-1]:%Y-%m-%d}")
+
+    for label, forecast in predictions.items():
+        error = (test["actual"] - forecast).abs().mean()
+        print(f"{label}: {error:.3f} percentage points MAE")
 
 
 if __name__ == "__main__":
