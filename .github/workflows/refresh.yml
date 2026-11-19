@@ -1,6 +1,9 @@
 name: Refresh market data
 
 on:
+  schedule:
+    - cron: "15 18 * * 1-5"
+      timezone: "America/New_York"
   workflow_dispatch:
     inputs:
       fetch_prices:
@@ -37,7 +40,7 @@ jobs:
           python -c 'from market_brief import TICKERS; assert len(TICKERS) == len(set(TICKERS)) == 13; print("13 tickers configured. No API calls made.")'
 
       - name: Check R2 settings before fetching prices
-        if: ${{ inputs.fetch_prices }}
+        if: ${{ github.event_name == 'schedule' || inputs.fetch_prices }}
         env:
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
@@ -71,13 +74,13 @@ jobs:
           PY
 
       - name: Download and validate market data
-        if: ${{ inputs.fetch_prices }}
+        if: ${{ github.event_name == 'schedule' || inputs.fetch_prices }}
         env:
           ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
         run: python refresh_prices.py
 
       - name: Publish validated snapshot to R2
-        if: ${{ success() && inputs.fetch_prices }}
+        if: ${{ success() && (github.event_name == 'schedule' || inputs.fetch_prices) }}
         env:
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
