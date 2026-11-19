@@ -28,11 +28,15 @@ def download_prices(symbol, api_key):
         raise SystemExit(f"Alpha Vantage returned HTTP {response.status_code}.")
 
     csv_text = response.text.lstrip("\ufeff").strip()
+        # show the api message when the response does not contain price data
     if not csv_text.lower().startswith("timestamp,open,high,low,close,"):
-        raise SystemExit(
-            "Alpha Vantage did not return a price CSV. Check your key, "
-            "daily request limit, and endpoint access."
-        )
+        try:
+            message = str(response.json())
+        except ValueError:
+            message = csv_text.split("\n", 1)[0] or "empty response"
+
+        message = message.replace(api_key, "[hidden]")
+        raise SystemExit(f"Alpha Vantage response for {symbol}: {message[:500]}")
 
     prices = pd.read_csv(StringIO(csv_text), parse_dates=["timestamp"])
     prices = prices.rename(
