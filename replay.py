@@ -1,0 +1,46 @@
+import argparse
+
+import pandas as pd
+
+
+# function to compare a past spy range forecast with the actual next session
+def main():
+    parser = argparse.ArgumentParser(description="Replay a past SPY forecast.")
+    parser.add_argument("date", help="forecast date in YYYY-MM-DD format")
+    args = parser.parse_args()
+
+    prices = pd.read_csv("data/spy.csv", parse_dates=["Date"])
+    prices = prices.sort_values("Date").set_index("Date")
+
+    # measure each session's high-to-low range against the previous close
+    daily_range = (prices["High"] - prices["Low"]) / prices["Close"].shift(1) * 100
+
+    # use only the ranges available at the forecast date's close
+    forecast = daily_range.rolling(20).median()
+
+    # attach the following trading session's date and range for scoring
+    replay = pd.DataFrame({
+        "forecast": forecast,
+        "next_date": prices.index.to_series().shift(-1),
+        "actual": daily_range.shift(-1),
+    })
+
+    forecast_date = pd.Timestamp(args.date)
+    if forecast_date not in replay.index:
+        raise SystemExit("Choose a trading date from data/spy.csv.")
+
+    session = replay.loc[forecast_date]
+    if pd.isna(session["forecast"]):
+        raise SystemExit("Choose a later date with 20 daily ranges available.")
+    if pd.isna(session["actual"]):
+        raise SystemExit("Choose an earlier date with a next session in the CSV.")
+
+    error = abs(session["forecast"] - session["actual"])
+    print(f"Forecast as of close | {forecast_date:%Y-%m-%d}")
+    print(f"Forecast range: {session['forecast']:.2f}%")
+    print(f"Actual range on {session['next_date']:%Y-%m-%d}: {session['actual']:.2f}%")
+    print(f"Absolute error: {error:.2f} percentage points")
+
+
+if __name__ == "__main__":
+    main()
