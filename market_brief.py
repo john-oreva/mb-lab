@@ -16,7 +16,7 @@ def read_latest_return(symbol):
 
 
 # function to check that the tickers share a date and print the market brief
-def main():
+def build_market_brief():
     latest = {symbol: read_latest_return(symbol) for symbol in TICKERS}
     session_date = latest["SPY"][0]
     mismatched = [symbol for symbol in TICKERS if latest[symbol][0] != session_date]
@@ -58,13 +58,30 @@ def main():
         comparison = "outperformed" if spread > 0 else "lagged"
         weight_summary = f"RSP {comparison} SPY by {abs(spread):.2f} percentage points."
 
-    print(f"Market Brief | {session_date:%Y-%m-%d}")
-    print(f"{breadth_summary} {weight_summary}")
-    print(f"SPY {spy_return:+.2f}% | RSP {rsp_return:+.2f}%")
-    print(f"Sectors: {up} up, {down} down, {flat} flat")
-    print(f"Top sector ETF: {sector_returns.idxmax()} ({sector_returns.max():+.2f}%)")
-    print(f"Bottom sector ETF: {sector_returns.idxmin()} ({sector_returns.min():+.2f}%)")
+    return {
+        "date": f"{session_date:%Y-%m-%d}",
+        "summary": f"{breadth_summary} {weight_summary}",
+        "spy_return": spy_return,
+        "rsp_return": rsp_return,
+        "sectors_up": up,
+        "sectors_down": down,
+        "sectors_flat": flat,
+        "top_sector": f"{sector_returns.idxmax()} ({sector_returns.max():+.2f}%)",
+        "bottom_sector": f"{sector_returns.idxmin()} ({sector_returns.min():+.2f}%)",
+    }
 
+# function to display the market brief in the terminal
+def main():
+    brief = build_market_brief()
+    print(f"Market Brief | {brief['date']}")
+    print(brief["summary"])
+    print(f"SPY {brief['spy_return']:+.2f}% | RSP {brief['rsp_return']:+.2f}%")
+    print(
+        f"Sectors: {brief['sectors_up']} up, {brief['sectors_down']} down, "
+        f"{brief['sectors_flat']} flat"
+    )
+    print(f"Top sector ETF: {brief['top_sector']}")
+    print(f"Bottom sector ETF: {brief['bottom_sector']}")
 
 if __name__ == "__main__":
     main()

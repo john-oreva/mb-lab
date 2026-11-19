@@ -31,12 +31,7 @@ def predict_range(train, test, features):
     )
     return np.maximum(test_inputs @ coefficients, 0)
 
-
-# function to score all three forecasts on the same later dates
-def main():
-    parser = argparse.ArgumentParser(description="Score or inspect historical forecasts.")
-    parser.add_argument("--date", type=pd.Timestamp, help="forecast date in YYYY-MM-DD format")
-    args = parser.parse_args()
+def build_comparison():
     sessions = (
         build_replay()
         .join(build_breadth())
@@ -57,9 +52,20 @@ def main():
         "Price + breadth": predict_range(train, test, ["forecast", "breadth"]),
     }
 
-        # line up all three forecasts with the actual range for each test date
+    # Line up each forecast with the actual range for that test date.
     comparison = pd.DataFrame(predictions, index=test.index)
     comparison["Actual"] = test["actual"]
+    return train, test, comparison
+
+# function to score all three forecasts on the same later dates
+def main():
+    parser = argparse.ArgumentParser(description="Score or inspect historical forecasts.")
+    parser.add_argument("--date", type=pd.Timestamp, help="forecast date in YYYY-MM-DD format")
+    args = parser.parse_args()
+
+    train, test, comparison = build_comparison()
+    model_columns = comparison.columns.drop("Actual")
+    
 
     # show the forecasts and errors for one test date when requested
     if args.date is not None:
@@ -72,7 +78,7 @@ def main():
         print(f"Forecast as of close | {args.date:%Y-%m-%d}")
         print(f"Actual range on {next_date:%Y-%m-%d}: {row['Actual']:.3f}%")
 
-        for label in predictions:
+        for label in model_columns:
             error = abs(row[label] - row["Actual"])
             print(f"{label}: {row[label]:.3f}% | error: {error:.3f} percentage points")
 
@@ -82,8 +88,8 @@ def main():
     print(f"Test sessions: {len(test)}")
     print(f"Test dates: {test.index[0]:%Y-%m-%d} to {test.index[-1]:%Y-%m-%d}")
 
-    for label, forecast in predictions.items():
-        error = (test["actual"] - forecast).abs().mean()
+    for label in model_columns:
+        error = (comparison["Actual"] - comparison[label]).abs().mean()
         print(f"{label}: {error:.3f} percentage points MAE")
 
 
