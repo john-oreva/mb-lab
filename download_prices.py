@@ -1,3 +1,4 @@
+import argparse
 import os
 from io import StringIO
 from pathlib import Path
@@ -6,14 +7,14 @@ import pandas as pd
 import requests
 
 
-# function to download daily spy prices from alpha vantage
-def download_spy_prices(api_key):
+# function to download daily prices for a ticker from alpha vantage
+def download_prices(symbol, api_key):
     try:
         response = requests.get(
             "https://www.alphavantage.co/query",
             params={
                 "function": "TIME_SERIES_DAILY",
-                "symbol": "SPY",
+                "symbol": symbol,
                 "outputsize": "compact",
                 "datatype": "csv",
                 "apikey": api_key,
@@ -47,20 +48,24 @@ def download_spy_prices(api_key):
     return prices.sort_values("Date")
 
 
-# function to calculate daily returns and save spy prices to a csv
+# function to calculate daily returns and save prices for a ticker
 def main():
+    parser = argparse.ArgumentParser(description="Download daily ETF prices.")
+    parser.add_argument("symbol", help="ticker to download, such as SPY or RSP")
+    symbol = parser.parse_args().symbol.upper()
+
     api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
     if not api_key:
         raise SystemExit("Set ALPHA_VANTAGE_API_KEY before running this script.")
 
-    prices = download_spy_prices(api_key)
+    prices = download_prices(symbol, api_key)
     if len(prices) < 2:
         raise SystemExit("Need at least two trading days to calculate a return.")
 
     # compare each closing price with the previous session's close
     prices["Daily return (%)"] = prices["Close"].pct_change() * 100
 
-    output_path = Path("data/spy.csv")
+    output_path = Path("data") / f"{symbol.lower()}.csv"
     output_path.parent.mkdir(exist_ok=True)
     prices.to_csv(output_path, index=False)
 
