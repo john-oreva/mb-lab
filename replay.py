@@ -3,27 +3,26 @@ import argparse
 import pandas as pd
 
 
+# function to build historical spy forecasts and attach the next session's outcome
+def build_replay():
+    prices = pd.read_csv("data/spy.csv", parse_dates=["Date"])
+    prices = prices.sort_values("Date").set_index("Date")
+
+    daily_range = (prices["High"] - prices["Low"]) / prices["Close"].shift(1) * 100
+
+    return pd.DataFrame({
+        "forecast": daily_range.rolling(20).median(),
+        "next_date": prices.index.to_series().shift(-1),
+        "actual": daily_range.shift(-1),
+    })
+
 # function to compare a past spy range forecast with the actual next session
 def main():
     parser = argparse.ArgumentParser(description="Replay a past SPY forecast.")
     parser.add_argument("date", help="forecast date in YYYY-MM-DD format")
     args = parser.parse_args()
 
-    prices = pd.read_csv("data/spy.csv", parse_dates=["Date"])
-    prices = prices.sort_values("Date").set_index("Date")
-
-    # measure each session's high-to-low range against the previous close
-    daily_range = (prices["High"] - prices["Low"]) / prices["Close"].shift(1) * 100
-
-    # use only the ranges available at the forecast date's close
-    forecast = daily_range.rolling(20).median()
-
-    # attach the following trading session's date and range for scoring
-    replay = pd.DataFrame({
-        "forecast": forecast,
-        "next_date": prices.index.to_series().shift(-1),
-        "actual": daily_range.shift(-1),
-    })
+    replay = build_replay()
 
     forecast_date = pd.Timestamp(args.date)
     if forecast_date not in replay.index:
