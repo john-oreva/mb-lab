@@ -68,6 +68,8 @@ def build_market_brief():
         "sectors_flat": flat,
         "top_sector": f"{sector_returns.idxmax()} ({sector_returns.max():+.2f}%)",
         "bottom_sector": f"{sector_returns.idxmin()} ({sector_returns.min():+.2f}%)",
+        "leaders": list(sector_returns.nlargest(2).items()),
+        "laggards": list(sector_returns.nsmallest(2).items()),
     }
 
 # function to display the market brief in the terminal

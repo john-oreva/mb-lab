@@ -1,0 +1,43 @@
+name: Refresh market data
+
+on:
+  workflow_dispatch:
+    inputs:
+      fetch_prices:
+        description: "Fetch all 13 ETFs from Alpha Vantage"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Check configuration without calling Alpha Vantage
+        env:
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+        run: |
+          test -n "$ALPHA_VANTAGE_API_KEY" || { echo "Missing ALPHA_VANTAGE_API_KEY secret"; exit 1; }
+          python -m py_compile refresh_prices.py download_prices.py market_brief.py replay.py results.py app.py
+          python -c 'from market_brief import TICKERS; assert len(TICKERS) == len(set(TICKERS)) == 13; print("13 tickers configured. No API calls made.")'
+
+      - name: Download and validate market data
+        if: ${{ inputs.fetch_prices }}
+        env:
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+        run: python refresh_prices.py
