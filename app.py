@@ -303,8 +303,8 @@ markup = f"""
 
     <section data-panel="replay" hidden>
       <div class="eyebrow">Historical replay</div>
-      <h1>What happened next?</h1>
-      <p>Compare the three forecasts, then reveal the actual trading range.</p>
+      <h1>How close were the forecasts?</h1>
+      <p>Pick a forecast date, then reveal SPY’s actual trading range for the next session to see which forecast came closest.</p>
       <div class="controls">
         <label for="forecast-date">Forecast date</label>
         <select id="forecast-date">{"".join(date_options)}</select>
