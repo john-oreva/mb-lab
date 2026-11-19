@@ -314,7 +314,8 @@ markup = f"""
 
     <section data-panel="results" hidden>
       <div class="eyebrow">Backtest · {len(test)} test sessions</div>
-      <h1>Did breadth improve the forecast?</h1>
+      <h1>Did sector data improve the SPY forecast?</h1>
+      <p>We tested whether knowing how many sectors rose that day helped predict SPY’s next-day trading range.</p>
       <p>
         {len(train)} training sessions ·
         {test.index[0]:%Y-%m-%d} to {test.index[-1]:%Y-%m-%d} test period.
