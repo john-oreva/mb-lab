@@ -8,12 +8,12 @@ from market_brief import SECTORS
 from replay import build_replay
 
 
-# function to calculate the share of sectors that rose on each complete date
-def build_breadth():
+#function to calculate the share of sectors that rose on each complete date
+def build_breadth(data_dir="data"):
     sector_returns = {}
 
     for symbol in SECTORS:
-        path = Path("data") / f"{symbol.lower()}.csv"
+        path = Path(data_dir) / f"{symbol.lower()}.csv"
         prices = pd.read_csv(path, parse_dates=["Date"]).set_index("Date")
         sector_returns[symbol] = prices["Daily return (%)"]
 
@@ -21,7 +21,7 @@ def build_breadth():
     return returns.gt(0).mean(axis=1).rename("breadth")
 
 
-# function to fit a regression on earlier dates and predict later dates
+#function to fit a regression on earlier dates and predict later dates
 def predict_range(train, test, features):
     train_inputs = train[features].assign(intercept=1).to_numpy()
     test_inputs = test[features].assign(intercept=1).to_numpy()
@@ -31,10 +31,10 @@ def predict_range(train, test, features):
     )
     return np.maximum(test_inputs @ coefficients, 0)
 
-def build_comparison():
+def build_comparison(data_dir="data"):
     sessions = (
-        build_replay()
-        .join(build_breadth())
+        build_replay(data_dir)
+        .join(build_breadth(data_dir))
         .dropna(subset=["forecast", "actual", "breadth"])
         .sort_index()
     )
@@ -52,12 +52,12 @@ def build_comparison():
         "Price + breadth": predict_range(train, test, ["forecast", "breadth"]),
     }
 
-    # Line up each forecast with the actual range for that test date.
+    #line up each forecast with the actual range for that test date.
     comparison = pd.DataFrame(predictions, index=test.index)
     comparison["Actual"] = test["actual"]
     return train, test, comparison
 
-# function to score all three forecasts on the same later dates
+#function to score all three forecasts on the same later dates
 def main():
     parser = argparse.ArgumentParser(description="Score or inspect historical forecasts.")
     parser.add_argument("--date", type=pd.Timestamp, help="forecast date in YYYY-MM-DD format")
@@ -67,7 +67,7 @@ def main():
     model_columns = comparison.columns.drop("Actual")
     
 
-    # show the forecasts and errors for one test date when requested
+    #show the forecasts and errors for one test date when requested
     if args.date is not None:
         if args.date not in comparison.index:
             raise SystemExit("Choose a forecast date from the test period.")

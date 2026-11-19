@@ -7,7 +7,7 @@ import pandas as pd
 import requests
 
 
-# function to download daily prices for a ticker from alpha vantage
+#function to download daily prices for a ticker from alpha vantage
 def download_prices(symbol, api_key):
     try:
         response = requests.get(
@@ -28,7 +28,7 @@ def download_prices(symbol, api_key):
         raise SystemExit(f"Alpha Vantage returned HTTP {response.status_code}.")
 
     csv_text = response.text.lstrip("\ufeff").strip()
-        # show the api message when the response does not contain price data
+        #show the api message when the response does not contain price data
     if not csv_text.lower().startswith("timestamp,open,high,low,close,"):
         try:
             message = str(response.json())
@@ -52,7 +52,7 @@ def download_prices(symbol, api_key):
     return prices.sort_values("Date")
 
 
-# function to calculate daily returns and save prices for a ticker
+#function to calculate daily returns and save prices for a ticker
 def main():
     parser = argparse.ArgumentParser(description="Download daily ETF prices.")
     parser.add_argument("symbol", help="ticker to download, such as SPY or RSP")
@@ -66,14 +66,14 @@ def main():
     if len(prices) < 2:
         raise SystemExit("Need at least two trading days to calculate a return.")
 
-    # compare each closing price with the previous session's close
+    #compare each closing price with the previous session's close
     prices["Daily return (%)"] = prices["Close"].pct_change() * 100
 
     output_path = Path("data") / f"{symbol.lower()}.csv"
     output_path.parent.mkdir(exist_ok=True)
     prices.to_csv(output_path, index=False)
 
-    # print the two latest closes so you can verify the last return by hand
+    #print the two latest closes so you can verify the last return by hand
     columns = ["Date", "Close", "Daily return (%)"]
     print(prices[columns].tail(2).to_string(index=False))
     print(f"\nSaved {len(prices):,} rows to {output_path}")

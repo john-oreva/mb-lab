@@ -1,9 +1,11 @@
 from html import escape
 
+from pathlib import Path
+
 import streamlit as st
 from streamlit.components.v1 import html
 
-from market_brief import build_market_brief
+from market_brief import TICKERS, build_market_brief
 from results import build_comparison
 
 
@@ -39,7 +41,7 @@ SECTOR_NAMES = {
 }
 
 
-# function to render a label and its value on opposite sides of a row
+#function to render a label and its value on opposite sides of a row
 def row(label, value, tone=""):
     return (
         f'<div class="row"><span>{escape(str(label))}</span>'
@@ -47,14 +49,24 @@ def row(label, value, tone=""):
     )
 
 
-# function to format a return and color it by direction
+#function to format a return and color it by direction
 def return_row(label, value):
     tone = "up" if value > 0 else "down" if value < 0 else ""
     return row(label, f"{value:+.2f}%", tone)
 
 
-brief = build_market_brief()
-train, test, comparison = build_comparison()
+data_root = Path(__file__).resolve().parent / "data"
+current = data_root / "current"
+data_dir = current.resolve() if current.is_dir() else data_root
+
+#show a waiting screen until all ticker files are available
+if not all((data_dir / f"{ticker.lower()}.csv").is_file() for ticker in TICKERS):
+    st.title("Market Breadth Lab")
+    st.info("Waiting for the first complete market update.")
+    st.stop()
+
+brief = build_market_brief(data_dir)
+train, test, comparison = build_comparison(data_dir)
 model_columns = comparison.columns.drop("Actual")
 actuals = comparison["Actual"]
 errors = comparison[model_columns].sub(actuals, axis=0).abs().mean()
@@ -84,7 +96,7 @@ sector_rows = "".join(
 )
 result_rows = "".join(row(model, f"{errors[model]:.3f} pp") for model in model_columns)
 
-# build one replay panel per forecast date using the same rows as results
+#build one replay panel per forecast date using the same rows as results
 date_options = []
 replay_panels = []
 

@@ -1,11 +1,13 @@
 import argparse
 
+from pathlib import Path
+
 import pandas as pd
 
 
-# function to build historical spy forecasts and attach the next session's outcome
-def build_replay():
-    prices = pd.read_csv("data/spy.csv", parse_dates=["Date"])
+#function to build historical spy forecasts and attach the next session's outcome
+def build_replay(data_dir="data"):
+    prices = pd.read_csv(Path(data_dir) / "spy.csv", parse_dates=["Date"])
     prices = prices.sort_values("Date").set_index("Date")
 
     daily_range = (prices["High"] - prices["Low"]) / prices["Close"].shift(1) * 100
@@ -16,7 +18,7 @@ def build_replay():
         "actual": daily_range.shift(-1),
     })
 
-# function to compare a past spy range forecast with the actual next session
+#function to compare a past spy range forecast with the actual next session
 def main():
     parser = argparse.ArgumentParser(description="Replay a past SPY forecast.")
     parser.add_argument("date", help="forecast date in YYYY-MM-DD format")

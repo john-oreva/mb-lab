@@ -7,17 +7,20 @@ SECTORS = ("XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV"
 TICKERS = ("SPY", "RSP", *SECTORS)
 
 
-# function to read the latest trading date and return for a ticker
-def read_latest_return(symbol):
-    path = Path("data") / f"{symbol.lower()}.csv"
+#function to read the latest trading date and return for a ticker
+def read_latest_return(symbol, data_dir="data"):
+    path = Path(data_dir) / f"{symbol.lower()}.csv"
     prices = pd.read_csv(path, parse_dates=["Date"]).sort_values("Date")
     latest = prices.iloc[-1]
     return latest["Date"], latest["Daily return (%)"]
 
 
-# function to check that the tickers share a date and print the market brief
-def build_market_brief():
-    latest = {symbol: read_latest_return(symbol) for symbol in TICKERS}
+#function to check that the tickers share a date and print the market brief
+def build_market_brief(data_dir="data"):
+    latest = {
+        symbol: read_latest_return(symbol, data_dir)
+        for symbol in TICKERS
+    }
     session_date = latest["SPY"][0]
     mismatched = [symbol for symbol in TICKERS if latest[symbol][0] != session_date]
 
@@ -31,7 +34,7 @@ def build_market_brief():
     down = (sector_returns < 0).sum()
     flat = len(SECTORS) - up - down
 
-        # describe how many sectors moved in the same direction as spy
+        #describe how many sectors moved in the same direction as spy
     if spy_return == 0:
         breadth_summary = "SPY was flat."
     else:
@@ -50,7 +53,7 @@ def build_market_brief():
             f"({same_direction} of {len(SECTORS)} sectors also {direction})."
         )
 
-    # compare the equal-weight return with the spy return
+    #compare the equal-weight return with the spy return
     spread = rsp_return - spy_return
     if abs(spread) < 0.005:
         weight_summary = "RSP and SPY had nearly identical returns."
@@ -72,7 +75,7 @@ def build_market_brief():
         "laggards": list(sector_returns.nsmallest(2).items()),
     }
 
-# function to display the market brief in the terminal
+#function to display the market brief in the terminal
 def main():
     brief = build_market_brief()
     print(f"Market Brief | {brief['date']}")
