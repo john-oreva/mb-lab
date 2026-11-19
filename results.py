@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import argparse
 import numpy as np
 import pandas as pd
 
@@ -33,6 +34,9 @@ def predict_range(train, test, features):
 
 # function to score all three forecasts on the same later dates
 def main():
+    parser = argparse.ArgumentParser(description="Score or inspect historical forecasts.")
+    parser.add_argument("--date", type=pd.Timestamp, help="forecast date in YYYY-MM-DD format")
+    args = parser.parse_args()
     sessions = (
         build_replay()
         .join(build_breadth())
@@ -52,6 +56,27 @@ def main():
         "Price only": predict_range(train, test, ["forecast"]),
         "Price + breadth": predict_range(train, test, ["forecast", "breadth"]),
     }
+
+        # line up all three forecasts with the actual range for each test date
+    comparison = pd.DataFrame(predictions, index=test.index)
+    comparison["Actual"] = test["actual"]
+
+    # show the forecasts and errors for one test date when requested
+    if args.date is not None:
+        if args.date not in comparison.index:
+            raise SystemExit("Choose a forecast date from the test period.")
+
+        row = comparison.loc[args.date]
+        next_date = test.loc[args.date, "next_date"]
+
+        print(f"Forecast as of close | {args.date:%Y-%m-%d}")
+        print(f"Actual range on {next_date:%Y-%m-%d}: {row['Actual']:.3f}%")
+
+        for label in predictions:
+            error = abs(row[label] - row["Actual"])
+            print(f"{label}: {row[label]:.3f}% | error: {error:.3f} percentage points")
+
+        return
 
     print(f"Training sessions: {len(train)}")
     print(f"Test sessions: {len(test)}")
